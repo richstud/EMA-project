@@ -1,0 +1,53 @@
+name: Repo & Supabase Keep Alive
+
+permissions:
+  contents: write   # ✅ REQUIRED to push commits
+
+on:
+  schedule:
+    # Daily Supabase ping (03:00 UTC = 08:30 IST)
+    - cron: "0 3 * * *"
+
+    # Monthly repo push (1st day of month)
+    - cron: "0 4 1 * *"
+
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ============================
+      # 1️⃣ DAILY: Supabase Ping
+      # ============================
+      - name: Ping Supabase webhook_logs
+        run: |
+          echo "Pinging Supabase..."
+          curl -s -o /dev/null -w "Status: %{http_code}\n" \
+          "${{ secrets.SUPABASE_URL }}/rest/v1/webhook_logs?select=id&limit=1" \
+          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "Accept: application/json"
+
+      # ============================
+      # 2️⃣ MONTHLY: Repo Keep Alive
+      # ============================
+      - name: Checkout repository
+        if: github.event.schedule == '0 4 1 * *'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Monthly keep-alive commit
+        if: github.event.schedule == '0 4 1 * *'
+        run: |
+          DATE=$(date)
+          echo "Last keep alive: $DATE" > .github/KEEP_ALIVE.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .github/KEEP_ALIVE.md
+          git commit -m "chore: monthly keep-alive" || echo "Nothing to commit"
+          git push
