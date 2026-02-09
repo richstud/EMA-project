@@ -1,0 +1,46 @@
+name: Repo & Supabase Keep Alive (EMA Project)
+
+permissions:
+  contents: write
+
+on:
+  schedule:
+    # Daily Supabase ping (03:00 UTC = 08:30 IST)
+    - cron: "0 3 * * *"
+
+    # Monthly repo keep-alive commit (1st of month, 04:00 UTC)
+    - cron: "0 4 1 * *"
+
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Daily Supabase ping
+      - name: Ping Supabase
+        run: |
+          echo "Pinging Supabase..."
+          curl -s -o /dev/null -w "Status: %{http_code}\n" \
+          "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
+
+      # 3️⃣ Monthly forced commit
+      - name: Monthly keep-alive commit
+        run: |
+          echo "Running monthly keep-alive commit"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # force a file change
+          date > .keepalive
+
+          git add .keepalive
+          git commit -m "chore: monthly keep-alive commit" || echo "Nothing to commit"
+          git push
